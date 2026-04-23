@@ -1,9 +1,308 @@
 {% extends "base.html" %}
-{% block title %}Analisis Sentimen{% endblock %}
+{% block title %}Analisis Sentimen — SentimentTools{% endblock %}
+
 {% block content %}
-<section class="py-6"><h1 class="text-3xl font-bold text-white mb-2">Analisis Sentimen</h1><p class="text-gray-400 mb-8 max-w-2xl text-sm">Masukkan URL untuk menganalisis sentimen lokal.</p>
-<div x-data="af()" class="space-y-5"><div><label class="block text-sm font-medium text-gray-300 mb-2">URL Target</label><textarea x-model="urls" placeholder="https://kompas.com/...\nhttps://detik.com/..." rows="6" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 resize-none font-mono text-sm"></textarea><p class="text-xs text-gray-500 mt-1.5" x-text="uc()+' URL'"></p></div><div x-data="{o:false}"><button type="button" @click="o=!o" class="text-sm text-gray-500 hover:text-gray-300 flex items-center gap-1"><span x-text="o?'\u25B2':'\u25BC'" class="text-xs"></span> Opsi Lanjutan</button><div x-show="o" x-transition class="mt-3 p-4 bg-gray-900/60 rounded-xl border border-gray-800 space-y-3"><div><label class="text-xs text-gray-400 block mb-1">Kedalaman: <span class="text-amber-400" x-text="depth"></span></label><input type="range" x-model="depth" min="1" max="5" class="w-full accent-amber-500"></div><label class="flex items-center gap-3 text-sm text-gray-300 cursor-pointer"><input type="checkbox" x-model="js" class="accent-amber-500 w-4 h-4"> JS Rendering</label></div></div><button @click="go()" :disabled="busy||uc()===0" class="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-black font-semibold py-3 px-6 rounded-xl transition-all flex items-center justify-center gap-2 text-sm"><template x-if="busy"><span class="animate-spin w-4 h-4 border-2 border-black border-t-transparent rounded-full"></span></template><span x-text="busy?'Memulai...':'Mulai Analisis'"></span></button><p x-show="err" x-text="err" class="text-red-400 text-sm bg-red-950/40 border border-red-900/50 rounded-lg p-3"></p></div></section>
+<section class="animate-in">
+  <h1 class="hero-title">Analisis Sentimen</h1>
+  <p class="hero-sub">Platform riset open-source untuk crawling, scraping, dan analisis sentimen lokal. Pilih metode input di bawah untuk memulai.</p>
+
+  <div x-data="app()">
+    <!-- Tabs Navigation -->
+    <div class="tabs">
+      <button class="tab" :class="activeTab === 'url' ? 'active' : ''" @click="activeTab = 'url'">
+        <span class="tab-icon">🔗</span> URL
+      </button>
+      <button class="tab" :class="activeTab === 'keyword' ? 'active' : ''" @click="activeTab = 'keyword'">
+        <span class="tab-icon">🔍</span> Keyword
+      </button>
+      <button class="tab" :class="activeTab === 'text' ? 'active' : ''" @click="activeTab = 'text'">
+        <span class="tab-icon">📝</span> Teks
+      </button>
+      <button class="tab" :class="activeTab === 'social' ? 'active' : ''" @click="activeTab = 'social'">
+        <span class="tab-icon">📱</span> Social Media
+      </button>
+      <button class="tab" :class="activeTab === 'news' ? 'active' : ''" @click="activeTab = 'news'">
+        <span class="tab-icon">📰</span> Berita
+      </button>
+      <button class="tab" :class="activeTab === 'batch' ? 'active' : ''" @click="activeTab = 'batch'">
+        <span class="tab-icon">📦</span> Batch
+      </button>
+    </div>
+
+    <div class="card card-body">
+      <!-- URL Panel -->
+      <div class="tab-panel" :class="activeTab === 'url' ? 'active' : ''">
+        <div class="form-group">
+          <label class="label">Daftar URL Target</label>
+          <textarea x-model="url.raw" class="textarea" placeholder="https://example.com/artikel-1&#10;https://example.com/artikel-2"></textarea>
+          <div class="hint" x-text="countLines(url.raw) + ' URL terdeteksi'"></div>
+        </div>
+        
+        <div x-data="{ open: false }">
+          <button type="button" @click="open = !open" class="options-toggle">
+            <span x-text="open ? '▼' : '▶'"></span> Opsi Lanjutan
+          </button>
+          <div x-show="open" class="options-panel animate-in">
+            <div class="form-group">
+              <label class="label">Kedalaman Crawling: <span class="text-amber-500" x-text="url.depth"></span></label>
+              <input type="range" x-model="url.depth" min="1" max="5" class="range-input">
+            </div>
+            <label class="checkbox-label">
+              <input type="checkbox" x-model="url.js">
+              Gunakan JS Rendering (Playwright)
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Keyword Panel -->
+      <div class="tab-panel" :class="activeTab === 'keyword' ? 'active' : ''">
+        <div class="form-group">
+          <label class="label">Kata Kunci Riset</label>
+          <input type="text" x-model="keyword.query" class="input" placeholder="Contoh: Korupsi bantuan sosial">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="label">Jumlah Hasil</label>
+            <select x-model="keyword.limit" class="select">
+              <option value="10">10 Halaman</option>
+              <option value="25">25 Halaman</option>
+              <option value="50">50 Halaman</option>
+              <option value="100">100 Halaman</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="label">Search Engine</label>
+            <select x-model="keyword.engine" class="select">
+              <option value="duckduckgo">DuckDuckGo</option>
+              <option value="google_scholar">Google Scholar</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="label">Filter Domain (Opsional)</label>
+          <input type="text" x-model="keyword.site" class="input" placeholder="Contoh: detik.com">
+        </div>
+      </div>
+
+      <!-- Text Panel -->
+      <div class="tab-panel" :class="activeTab === 'text' ? 'active' : ''">
+        <div class="form-group">
+          <label class="label">Paste Teks Analisis</label>
+          <textarea x-model="text.raw" class="textarea" placeholder="Masukkan komentar, review, atau artikel teks di sini...&#10;Gunakan baris baru untuk memisahkan antar data."></textarea>
+          <div class="hint" x-text="countLines(text.raw) + ' baris teks'"></div>
+        </div>
+      </div>
+
+      <!-- Social Media Panel -->
+      <div class="tab-panel" :class="activeTab === 'social' ? 'active' : ''">
+        <div class="form-group">
+          <label class="label">Pilih Platform</label>
+          <div class="chips">
+            <button class="chip" :class="social.platform === 'twitter' ? 'selected' : ''" @click="social.platform = 'twitter'">Twitter/X</button>
+            <button class="chip" :class="social.platform === 'reddit' ? 'selected' : ''" @click="social.platform = 'reddit'">Reddit</button>
+            <button class="chip" :class="social.platform === 'youtube' ? 'selected' : ''" @click="social.platform = 'youtube'">YouTube</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="label" x-text="socialLabel()"></label>
+          <input type="text" x-model="social.query" class="input" :placeholder="socialPlaceholder()">
+        </div>
+        <div class="form-row" x-show="social.platform === 'reddit'">
+          <div class="form-group">
+            <label class="label">Subreddit (Opsional)</label>
+            <input type="text" x-model="social.subreddit" class="input" placeholder="Contoh: indonesia">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="label">Jumlah Post/Komentar</label>
+          <select x-model="social.limit" class="select">
+            <option value="20">20 Data</option>
+            <option value="50">50 Data</option>
+            <option value="100">100 Data</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- News Panel -->
+      <div class="tab-panel" :class="activeTab === 'news' ? 'active' : ''">
+        <div class="form-group">
+          <label class="label">Cari Berita Terkini</label>
+          <input type="text" x-model="news.query" class="input" placeholder="Keyword berita...">
+        </div>
+        <div class="form-group">
+          <label class="label">Pilih Sumber Media</label>
+          <div class="chips">
+            <template x-for="src in sources" :key="src">
+              <button class="chip" 
+                      :class="news.sources.includes(src) ? 'selected' : ''" 
+                      @click="toggleSource(src)"
+                      x-text="src.toUpperCase()">
+              </button>
+            </template>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="label">Max Artikel per Media</label>
+          <input type="number" x-model="news.limit" class="input" min="1" max="50">
+        </div>
+      </div>
+
+      <!-- Batch Panel -->
+      <div class="tab-panel" :class="activeTab === 'batch' ? 'active' : ''">
+        <div class="form-group">
+          <label class="label">Upload File (CSV atau TXT)</label>
+          <div class="card card-body border-dashed text-center" style="border-style: dashed;">
+             <input type="file" @change="handleFile" class="hidden" id="file-input">
+             <label for="file-input" class="cursor-pointer">
+               <div class="text-3xl mb-2">📁</div>
+               <div class="text-sm font-semibold" x-text="batch.file ? batch.file.name : 'Pilih file atau drag ke sini'"></div>
+               <div class="text-xs text-gray-500 mt-1">Satu baris berisi satu URL atau teks</div>
+             </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Button -->
+      <div class="mt-8">
+        <button @click="submit()" :disabled="busy || !canSubmit()" class="btn btn-primary">
+          <template x-if="busy">
+            <span class="spinner"></span>
+          </template>
+          <span x-text="busy ? 'Memproses...' : 'Mulai Analisis'"></span>
+        </button>
+        <div x-show="error" class="alert alert-error animate-in" x-text="error"></div>
+      </div>
+    </div>
+  </div>
+</section>
 {% endblock %}
+
 {% block scripts %}
-<script>function af(){return{urls:'',depth:2,js:false,busy:false,err:'',uc(){return this.urls.split('\n').map(u=>u.trim()).filter(u=>u).length},async go(){const l=this.urls.split('\n').map(u=>u.trim()).filter(u=>u);if(!l.length){this.err='Min 1 URL';return}this.busy=true;this.err='';try{const r=await fetch('/api/v1/analysis',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({urls:l,depth:this.depth,use_js_rendering:this.js})});if(!r.ok){const e=await r.json();throw new Error(e.detail||'Gagal')}const d=await r.json();window.location.href=d.redirect_url}catch(e){this.err=e.message}finally{this.busy=false}}}}</script>
+<script>
+function app() {
+  return {
+    activeTab: 'url',
+    busy: false,
+    error: '',
+    sources: ['kompas', 'detik', 'cnnindonesia', 'tribunnews', 'tempo', 'liputan6', 'tirto', 'kumparan'],
+    
+    url: { raw: '', depth: 2, js: false },
+    keyword: { query: '', limit: 10, engine: 'duckduckgo', site: '' },
+    text: { raw: '' },
+    social: { platform: 'twitter', query: '', limit: 50, subreddit: '' },
+    news: { query: '', sources: ['kompas', 'detik'], limit: 10 },
+    batch: { file: null },
+
+    countLines(str) {
+      return str.split('\n').map(l => l.trim()).filter(l => l).length;
+    },
+
+    socialLabel() {
+      if (this.social.platform === 'youtube') return 'URL Video YouTube';
+      return 'Keyword / Username / Hashtag';
+    },
+
+    socialPlaceholder() {
+      if (this.social.platform === 'youtube') return 'https://www.youtube.com/watch?v=...';
+      if (this.social.platform === 'twitter') return 'Contoh: @jokowi atau #pemilu';
+      return 'Keyword reddit...';
+    },
+
+    toggleSource(src) {
+      if (this.news.sources.includes(src)) {
+        this.news.sources = this.news.sources.filter(s => s !== src);
+      } else {
+        this.news.sources.push(src);
+      }
+    },
+
+    handleFile(e) {
+      this.batch.file = e.target.files[0];
+    },
+
+    canSubmit() {
+      if (this.activeTab === 'url') return this.countLines(this.url.raw) > 0;
+      if (this.activeTab === 'keyword') return this.keyword.query.trim().length > 0;
+      if (this.activeTab === 'text') return this.countLines(this.text.raw) > 0;
+      if (this.activeTab === 'social') return this.social.query.trim().length > 0;
+      if (this.activeTab === 'news') return this.news.query.trim().length > 0 || this.news.sources.length > 0;
+      if (this.activeTab === 'batch') return this.batch.file !== null;
+      return false;
+    },
+
+    async submit() {
+      this.busy = true;
+      this.error = '';
+      let endpoint = '/api/v1/analysis';
+      let body = {};
+      let isMultipart = false;
+
+      try {
+        if (this.activeTab === 'url') {
+          body = {
+            urls: this.url.raw.split('\n').map(l => l.trim()).filter(l => l),
+            depth: parseInt(this.url.depth),
+            use_js_rendering: this.url.js
+          };
+        } else if (this.activeTab === 'keyword') {
+          endpoint = '/api/v1/keyword';
+          body = {
+            keyword: this.keyword.query,
+            max_results: parseInt(this.keyword.limit),
+            engine: this.keyword.engine,
+            site_filter: this.keyword.site || null,
+            depth: 1
+          };
+        } else if (this.activeTab === 'text') {
+          endpoint = '/api/v1/text';
+          body = {
+            texts: this.text.raw.split('\n').map(l => l.trim()).filter(l => l)
+          };
+        } else if (this.activeTab === 'social') {
+          endpoint = '/api/v1/social';
+          body = {
+            platform: this.social.platform,
+            query: this.social.query,
+            max_results: parseInt(this.social.limit),
+            subreddit: this.social.subreddit || null
+          };
+        } else if (this.activeTab === 'news') {
+          endpoint = '/api/v1/news';
+          body = {
+            keyword: this.news.query || null,
+            sources: this.news.sources,
+            max_articles: parseInt(this.news.limit)
+          };
+        } else if (this.activeTab === 'batch') {
+          endpoint = '/api/v1/batch';
+          isMultipart = true;
+          const formData = new FormData();
+          formData.append('file', this.batch.file);
+          body = formData;
+        }
+
+        const options = {
+          method: 'POST',
+          body: isMultipart ? body : JSON.stringify(body)
+        };
+        if (!isMultipart) {
+          options.headers = { 'Content-Type': 'application/json' };
+        }
+
+        const resp = await fetch(endpoint, options);
+        const data = await resp.json();
+        
+        if (!resp.ok) throw new Error(data.detail || 'Gagal memulai job');
+        
+        window.location.href = data.redirect_url;
+      } catch (e) {
+        this.error = e.message;
+      } finally {
+        this.busy = false;
+      }
+    }
+  };
+}
+</script>
 {% endblock %}

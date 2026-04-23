@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Riwayat Analisis — SentimentTools{% endblock %}
+
+{% block content %}
+<section class="animate-in">
+  <div class="flex items-center justify-between mb-8">
+    <div>
+      <h1 class="hero-title">Riwayat Analisis</h1>
+      <p class="hero-sub">Daftar semua pekerjaan crawling dan analisis yang telah dijalankan.</p>
+    </div>
+    <a href="/" class="btn btn-secondary btn-sm">Analisis Baru</a>
+  </div>
+
+  <div class="card overflow-hidden">
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>ID / Tanggal</th>
+            <th>Metode</th>
+            <th>Input / Keyword</th>
+            <th>Status</th>
+            <th style="text-align: right">Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for job in jobs %}
+          <tr id="job-{{ job.id }}">
+            <td>
+              <div class="font-semibold" style="font-size: 0.78rem">#{{ job.id[:8] }}</div>
+              <div class="text-muted" style="font-size: 0.7rem">{{ job.created_at.strftime('%d %b %Y, %H:%M') }}</div>
+            </td>
+            <td>
+              <span class="badge badge-info">{{ job.input_type.upper() }}</span>
+              <div class="hint" style="margin-top: 2px">{{ job.source_type }}</div>
+            </td>
+            <td>
+              <div class="truncate" style="max-width: 240px">
+                {% if job.keyword %}
+                  <span class="font-medium text-amber-500">{{ job.keyword }}</span>
+                {% else %}
+                  <span class="text-muted italic">Multiple URLs/Texts</span>
+                {% endif %}
+              </div>
+            </td>
+            <td>
+              <span class="badge 
+                {% if job.status == 'COMPLETED' %}badge-positive
+                {% elif job.status == 'ERROR' or job.status == 'FAILED' %}badge-negative
+                {% else %}badge-warning pulse{% endif %}">
+                {{ job.status }}
+              </span>
+            </td>
+            <td style="text-align: right">
+              <div class="flex gap-2 justify-end">
+                <a href="/results/{{ job.id }}" class="btn btn-secondary btn-sm" title="Lihat Hasil">Hasil</a>
+                <button @click="deleteJob('{{ job.id }}')" class="btn btn-danger btn-sm" title="Hapus">
+                  Hapus
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+          {% if not jobs %}
+          <tr>
+            <td colspan="5" class="empty">
+              <div class="empty-icon">📂</div>
+              <div class="empty-text">Belum ada riwayat analisis.</div>
+            </td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function deleteJob(jid) {
+  if (!confirm('Hapus job ini dan semua datanya?')) return;
+  
+  try {
+    const resp = await fetch(`/api/v1/jobs/${jid}`, { method: 'DELETE' });
+    if (resp.ok) {
+      document.getElementById(`job-${jid}`).remove();
+    } else {
+      alert('Gagal menghapus job');
+    }
+  } catch (e) {
+    console.error(e);
+    alert('Terjadi kesalahan');
+  }
+}
+</script>
+{% endblock %}

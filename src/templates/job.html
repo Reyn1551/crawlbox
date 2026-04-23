@@ -1,8 +1,237 @@
 {% extends "base.html" %}
-{% block title %}Job{% endblock %}
+{% block title %}Proses Analisis — SentimentTools{% endblock %}
+
 {% block content %}
-<section x-data="jp('{{ job_id }}',{{ initial_state | tojson }})" class="py-4"><div class="flex items-center justify-between mb-6"><div><h2 class="text-xl font-bold text-white">Analisis Berjalan</h2><p class="text-xs text-gray-500 font-mono mt-0.5">{{ job_id }}</p></div><span :class="sc()" x-text="sl()" class="px-3 py-1 rounded-full text-xs font-semibold"></span></div><div class="bg-gray-800 rounded-full h-2.5 overflow-hidden mb-1.5"><div class="h-full rounded-full transition-all duration-700" :class="status==='COMPLETED'?'bg-emerald-500':status==='ERROR'?'bg-red-500':'bg-amber-500'" :style="'width:'+progress+'%'"></div></div><p class="text-sm text-gray-400 mb-6" x-text="pt()"></p><div class="grid grid-cols-3 gap-3 mb-6" x-show="summary" x-transition><div class="bg-emerald-950/40 border border-emerald-900/50 rounded-xl p-4 text-center"><div class="text-2xl font-bold text-emerald-400" x-text="summary?.positive_pct+'%'">-</div><div class="text-xs text-emerald-300/70 mt-1">Positif</div></div><div class="bg-red-950/40 border border-red-900/50 rounded-xl p-4 text-center"><div class="text-2xl font-bold text-red-400" x-text="summary?.negative_pct+'%'">-</div><div class="text-xs text-red-300/70 mt-1">Negatif</div></div><div class="bg-gray-800/60 border border-gray-700/50 rounded-xl p-4 text-center"><div class="text-2xl font-bold text-gray-300" x-text="summary?.neutral_pct+'%'">-</div><div class="text-xs text-gray-400 mt-1">Netral</div></div></div><div class="bg-gray-900/60 border border-gray-800 rounded-xl p-3.5 max-h-44 overflow-y-auto font-mono text-xs text-gray-500 space-y-0.5"><template x-for="(e,i) in log" :key="i"><div x-text="e" class="truncate"></div></template><div x-show="!log.length">Menunggu...</div></div><div x-show="status==='ERROR'" class="mt-4 p-4 bg-red-950/40 border border-red-900/50 rounded-xl"><p class="text-red-400 text-sm" x-text="errMsg"></p><a href="/" class="text-red-300 underline text-xs mt-2 inline-block">Kembali</a></div><div x-show="status==='COMPLETED'" class="mt-5 flex gap-2.5 flex-wrap" x-transition><a :href="'/results/'+jid" class="bg-amber-500 hover:bg-amber-600 text-black font-semibold py-2 px-5 rounded-xl text-sm">Lihat Hasil</a><a :href="'/api/v1/export/'+jid+'.csv'" class="bg-gray-800 hover:bg-gray-700 text-gray-300 py-2 px-5 rounded-xl text-sm border border-gray-700">CSV</a><a :href="'/api/v1/export/'+jid+'.json'" class="bg-gray-800 hover:bg-gray-700 text-gray-300 py-2 px-5 rounded-xl text-sm border border-gray-700">JSON</a></div></section>
+<section x-data="jobProgress('{{ job_id }}', {{ initial_state | tojson }})" class="animate-in">
+  <div class="flex items-center justify-between mb-8">
+    <div>
+      <h1 class="hero-title">Proses Analisis</h1>
+      <p class="hero-sub font-mono text-xs opacity-50">{{ job_id }}</p>
+    </div>
+    <span :class="statusClass()" x-text="statusLabel()" class="badge"></span>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <!-- Progress Card -->
+    <div class="card md:col-span-2">
+      <div class="card-body">
+        <div class="flex justify-between items-end mb-2">
+          <span class="text-sm font-semibold" x-text="phaseLabel()"></span>
+          <span class="text-xs text-muted" x-text="progress + '%'"></span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" :class="phaseClass()" :style="'width: ' + progress + '%'"></div>
+        </div>
+        
+        <div class="mt-8 grid grid-cols-3 gap-4">
+          <div class="text-center p-3 bg-white/5 rounded-xl border border-white/5">
+            <div class="text-xl font-bold text-info" x-text="crawled">0</div>
+            <div class="text-[10px] uppercase text-muted font-semibold mt-1">Crawled</div>
+          </div>
+          <div class="text-center p-3 bg-white/5 rounded-xl border border-white/5">
+            <div class="text-xl font-bold text-mixed" x-text="analyzed">0</div>
+            <div class="text-[10px] uppercase text-muted font-semibold mt-1">Analyzed</div>
+          </div>
+          <div class="text-center p-3 bg-white/5 rounded-xl border border-white/5">
+            <div class="text-xl font-bold text-amber-500" x-text="total">0</div>
+            <div class="text-[10px] uppercase text-muted font-semibold mt-1">Total</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary Preview (Only when completed or progressing) -->
+    <div class="card" x-show="summary" x-transition>
+      <div class="card-header">Distribusi Sentimen</div>
+      <div class="card-body p-4">
+        <div class="space-y-3">
+          <div class="flex justify-between items-center text-xs">
+            <span class="text-positive font-medium">Positif</span>
+            <span class="text-primary font-bold" x-text="summary?.positive_pct + '%'"></span>
+          </div>
+          <div class="progress-bar" style="height: 4px">
+            <div class="progress-fill" style="background: var(--positive)" :style="'width: ' + summary?.positive_pct + '%'"></div>
+          </div>
+          
+          <div class="flex justify-between items-center text-xs">
+            <span class="text-negative font-medium">Negatif</span>
+            <span class="text-primary font-bold" x-text="summary?.negative_pct + '%'"></span>
+          </div>
+          <div class="progress-bar" style="height: 4px">
+            <div class="progress-fill" style="background: var(--negative)" :style="'width: ' + summary?.negative_pct + '%'"></div>
+          </div>
+          
+          <div class="flex justify-between items-center text-xs">
+            <span class="text-neutral font-medium">Netral</span>
+            <span class="text-primary font-bold" x-text="summary?.neutral_pct + '%'"></span>
+          </div>
+          <div class="progress-bar" style="height: 4px">
+            <div class="progress-fill" style="background: var(--neutral)" :style="'width: ' + summary?.neutral_pct + '%'"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Real-time Logs -->
+  <div class="card">
+    <div class="card-header">Real-time Activity Log</div>
+    <div class="card-body p-0">
+      <div class="log-console" id="log-container">
+        <template x-for="(entry, index) in log" :key="index">
+          <div class="log-entry" :class="entry.type" x-text="entry.msg"></div>
+        </template>
+        <div x-show="!log.length" class="text-center py-8 opacity-20">Menunggu aktivitas...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error Alert -->
+  <div x-show="status === 'ERROR'" class="alert alert-error animate-in mt-6">
+    <div class="font-bold mb-1">Gagal menjalankan job</div>
+    <div class="text-sm opacity-80" x-text="errorMsg"></div>
+    <div class="mt-4">
+      <a href="/" class="btn btn-danger btn-sm">Kembali ke Home</a>
+    </div>
+  </div>
+
+  <!-- Actions (When completed) -->
+  <div x-show="status === 'COMPLETED'" class="actions animate-in">
+    <a :href="'/results/' + jid" class="btn btn-primary" style="width: auto">Lihat Hasil Detail</a>
+    <a :href="'/api/v1/export/' + jid + '.csv'" class="btn btn-secondary">Download CSV</a>
+    <a :href="'/api/v1/export/' + jid + '.json'" class="btn btn-secondary">Export JSON</a>
+  </div>
+</section>
 {% endblock %}
+
 {% block scripts %}
-<script>function jp(jid,init){return{jid,status:init.status||'CREATED',progress:init.progress||0,summary:null,errMsg:init.error_message||'',log:[],es:null,pt(){if(this.status==='COMPLETED')return'Selesai \u2014 '+(this.summary?.total_analyzed||0)+' halaman';if(this.status==='ERROR')return'Gagal';if(this.status==='CRAWLING')return'Crawling ('+this.progress+'%)';if(this.status==='NLP_PROCESSING')return'NLP ('+this.progress+'%)';return'Antrian...'},sc(){return({QUEUED:'bg-amber-900/50 text-amber-400',CRAWLING:'bg-blue-900/50 text-blue-400',NLP_PROCESSING:'bg-violet-900/50 text-violet-400',COMPLETED:'bg-emerald-900/50 text-emerald-400',ERROR:'bg-red-900/50 text-red-400'})[this.status]||'bg-gray-800 text-gray-400'},sl(){return({QUEUED:'Antrian',CRAWLING:'Crawling',NLP_PROCESSING:'NLP',COMPLETED:'Selesai',ERROR:'Gagal'})[this.status]||this.status},init(){this.es=new EventSource('/api/v1/stream/'+this.jid);this.es.onmessage=e=>{try{this.h(JSON.parse(e.data))}catch(er){}};this.es.addEventListener('done',()=>{this.es.close()});this.es.onerror=()=>{}},h(m){if(m.type==='STATUS'||m.type==='PROGRESS'){this.status=m.data.status;this.progress=m.data.progress||0}if(m.type==='CRAWL_RESULT'){this.status='CRAWLING';this.log.push('\u{1F577}  '+m.data.current_url);if(this.log.length>50)this.log.shift()}if(m.type==='NLP_RESULT'){this.status='NLP_PROCESSING';this.progress=m.data.progress||0}if(m.type==='COMPLETED'){this.status='COMPLETED';this.progress=100;this.summary={total_analyzed:m.data.total_analyzed,positive_pct:m.data.positive_pct,negative_pct:m.data.negative_pct,neutral_pct:m.data.neutral_pct};this.log.push('\u2705 Selesai')}if(m.type==='ERROR'){this.status='ERROR';this.errMsg=m.data.error_message||'';this.log.push('\u274C '+this.errMsg)}},destroy(){if(this.es)this.es.close()}}}</script>
+<script>
+function jobProgress(jid, init) {
+  return {
+    jid: jid,
+    status: init.status || 'CREATED',
+    progress: init.progress || 0,
+    crawled: init.crawled || 0,
+    analyzed: init.analyzed || 0,
+    total: init.total || 0,
+    errorMsg: init.error_message || '',
+    summary: null,
+    log: [],
+    es: null,
+
+    init() {
+      this.es = new EventSource(`/api/v1/stream/${this.jid}`);
+      
+      this.es.onmessage = (e) => {
+        try {
+          const m = JSON.parse(e.data);
+          this.handleMessage(m);
+        } catch (err) {
+          console.error('Parse error:', err);
+        }
+      };
+
+      this.es.addEventListener('done', () => {
+        this.es.close();
+      });
+
+      this.es.onerror = () => {
+        // Retry logic or silent fail
+      };
+    },
+
+    handleMessage(m) {
+      if (m.type === 'STATUS' || m.type === 'PROGRESS') {
+        this.status = m.data.status;
+        this.progress = m.data.progress || 0;
+        this.total = m.data.total || this.total;
+        this.crawled = m.data.crawled || this.crawled;
+        this.analyzed = m.data.analyzed || this.analyzed;
+      }
+
+      if (m.type === 'CRAWL_RESULT') {
+        this.log.push({ type: 'crawl', msg: `🕷️ Crawled: ${m.data.current_url}` });
+        this.crawled = m.data.crawled;
+      }
+
+      if (m.type === 'NLP_RESULT') {
+        this.log.push({ type: 'nlp', msg: `🧠 Analyzed: ${m.data.current_url}` });
+        this.analyzed = m.data.analyzed;
+        this.progress = m.data.progress;
+      }
+
+      if (m.type === 'COMPLETED') {
+        this.status = 'COMPLETED';
+        this.progress = 100;
+        this.summary = {
+          total_analyzed: m.data.total_analyzed,
+          positive_pct: m.data.positive_pct,
+          negative_pct: m.data.negative_pct,
+          neutral_pct: m.data.neutral_pct
+        };
+        this.log.push({ type: 'done', msg: '✅ Selesai! Semua data telah diproses.' });
+      }
+
+      if (m.type === 'ERROR') {
+        this.status = 'ERROR';
+        this.errorMsg = m.data.error_message || 'Terjadi kesalahan tidak diketahui';
+        this.log.push({ type: 'error', msg: `❌ ERROR: ${this.errorMsg}` });
+      }
+
+      // Auto scroll log
+      this.$nextTick(() => {
+        const el = document.getElementById('log-container');
+        if (el) el.scrollTop = el.scrollHeight;
+      });
+
+      if (this.log.length > 100) this.log.shift();
+    },
+
+    statusLabel() {
+      return {
+        QUEUED: 'Antrian',
+        SEARCHING: 'Mencari',
+        SCRAPING: 'Scraping',
+        CRAWLING: 'Crawling',
+        NLP_PROCESSING: 'Analisis NLP',
+        COMPLETED: 'Selesai',
+        ERROR: 'Gagal',
+        FAILED: 'Gagal'
+      }[this.status] || this.status;
+    },
+
+    statusClass() {
+      return {
+        QUEUED: 'badge-warning',
+        SEARCHING: 'badge-info',
+        SCRAPING: 'badge-info',
+        CRAWLING: 'badge-info',
+        NLP_PROCESSING: 'badge-mixed',
+        COMPLETED: 'badge-positive',
+        ERROR: 'badge-negative',
+        FAILED: 'badge-negative'
+      }[this.status] || 'badge-neutral';
+    },
+
+    phaseLabel() {
+      if (this.status === 'COMPLETED') return 'Analisis Selesai';
+      if (this.status === 'NLP_PROCESSING') return 'Menganalisis Sentimen...';
+      if (this.status === 'CRAWLING' || this.status === 'SCRAPING') return 'Mengambil Data Konten...';
+      if (this.status === 'SEARCHING') return 'Mencari URL di Search Engine...';
+      return 'Mempersiapkan...';
+    },
+
+    phaseClass() {
+      if (this.status === 'COMPLETED') return 'completed';
+      if (this.status === 'NLP_PROCESSING') return 'nlp';
+      if (this.status === 'ERROR' || this.status === 'FAILED') return 'error';
+      return 'crawling';
+    },
+
+    destroy() {
+      if (this.es) this.es.close();
+    }
+  };
+}
+</script>
 {% endblock %}

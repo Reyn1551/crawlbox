@@ -1,9 +1,152 @@
 {% extends "base.html" %}
-{% block title %}Hasil{% endblock %}
-{% block head %}<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>{% endblock %}
-{% block content %}
-<section class="py-4"><div class="flex items-center justify-between mb-6"><div><h2 class="text-xl font-bold text-white">Hasil Analisis</h2><p class="text-xs text-gray-500 font-mono mt-0.5">{{ job_id }}</p></div><div class="flex gap-2"><a href="/api/v1/export/{{ job_id }}.csv" class="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded-lg border border-gray-700">CSV</a><a href="/api/v1/export/{{ job_id }}.json" class="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded-lg border border-gray-700">JSON</a><a href="/" class="text-xs bg-amber-500 hover:bg-amber-600 text-black px-3 py-1.5 rounded-lg font-medium">Baru</a></div></div><div class="grid grid-cols-4 gap-3 mb-6"><div class="bg-gray-900/60 border border-gray-800 rounded-xl p-3.5 text-center"><div class="text-xl font-bold text-white">{{ total }}</div><div class="text-xs text-gray-500 mt-0.5">Total</div></div>{% set p=summary.get('positive',{}) %}<div class="bg-emerald-950/40 border border-emerald-900/50 rounded-xl p-3.5 text-center"><div class="text-xl font-bold text-emerald-400">{{ p.get('count',0) }}</div><div class="text-xs text-emerald-300/70 mt-0.5">Positif</div></div>{% set ng=summary.get('negative',{}) %}<div class="bg-red-950/40 border border-red-900/50 rounded-xl p-3.5 text-center"><div class="text-xl font-bold text-red-400">{{ ng.get('count',0) }}</div><div class="text-xs text-red-300/70 mt-0.5">Negatif</div></div>{% set nu=summary.get('neutral',{}) %}<div class="bg-gray-800/60 border border-gray-700/50 rounded-xl p-3.5 text-center"><div class="text-xl font-bold text-gray-300">{{ nu.get('count',0) }}</div><div class="text-xs text-gray-400 mt-0.5">Netral</div></div></div><div class="bg-gray-900/60 border border-gray-800 rounded-xl p-5 mb-6"><h3 class="text-sm font-semibold text-gray-300 mb-4">Distribusi</h3><div style="max-width:320px;margin:0 auto"><canvas id="sc"></canvas></div></div><div class="bg-gray-900/60 border border-gray-800 rounded-xl overflow-hidden"><div class="px-4 py-3 border-b border-gray-800"><h3 class="text-sm font-semibold text-gray-300">Detail ({{ total }})</h3></div><div class="divide-y divide-gray-800/60 max-h-[500px] overflow-y-auto">{% for r in results %}<div class="px-4 py-3 hover:bg-gray-800/30"><div class="flex items-start justify-between gap-3"><div class="min-w-0 flex-1"><a href="{{ r.source_url }}" target="_blank" class="text-sm text-amber-400 hover:text-amber-300 truncate block">{{ r.title or r.source_url }}</a><p class="text-xs text-gray-500 mt-1 line-clamp-2">{{ r.content_snippet[:200] }}</p><div class="flex gap-3 mt-1.5 text-xs text-gray-600"><span>{{ r.language|upper }}</span><span>{{ r.model_used }}</span><span>{{ "%.1f%%"|format(r.confidence*100) }}</span>{% if r.sarcasm_detected %}<span class="text-orange-400">sarkasme</span>{% endif %}</div></div><span class="text-xs font-semibold px-2.5 py-1 rounded-lg {% if r.sentiment=='positive' %}bg-emerald-900/50 text-emerald-400{% elif r.sentiment=='negative' %}bg-red-900/50 text-red-400{% else %}bg-gray-800 text-gray-400{% endif %}">{{ r.sentiment|upper }}</span></div></div>{% endfor %}{% if not results %}<div class="px-4 py-8 text-center text-gray-500 text-sm">Tidak ada hasil.</div>{% endif %}</div></div></section>
+{% block title %}Hasil Analisis — SentimentTools{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 {% endblock %}
+
+{% block content %}
+<section class="animate-in" x-data="resultsView()">
+  <div class="flex items-center justify-between mb-8">
+    <div>
+      <h1 class="hero-title">Hasil Analisis</h1>
+      <p class="hero-sub" x-text="jobKeyword()"></p>
+    </div>
+    <div class="flex gap-2">
+      <a href="/api/v1/export/{{ job_id }}.csv" class="btn btn-secondary btn-sm">Export CSV</a>
+      <a href="/api/v1/export/{{ job_id }}.json" class="btn btn-secondary btn-sm">JSON</a>
+      <a href="/" class="btn btn-primary btn-sm">Analisis Baru</a>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
+    <!-- Stats Column -->
+    <div class="lg:col-span-1 space-y-4">
+      <div class="card stat">
+        <div class="stat-value">{{ total }}</div>
+        <div class="stat-label">Total Data</div>
+      </div>
+      <div class="card stat stat-positive">
+        <div class="stat-value">{{ summary.get('positive', {}).get('count', 0) }}</div>
+        <div class="stat-label">Positif</div>
+      </div>
+      <div class="card stat stat-negative">
+        <div class="stat-value">{{ summary.get('negative', {}).get('count', 0) }}</div>
+        <div class="stat-label">Negatif</div>
+      </div>
+      <div class="card stat stat-neutral">
+        <div class="stat-value">{{ summary.get('neutral', {}).get('count', 0) }}</div>
+        <div class="stat-label">Netral</div>
+      </div>
+    </div>
+
+    <!-- Chart Column -->
+    <div class="lg:col-span-3 card">
+      <div class="card-header">Distribusi Sentimen</div>
+      <div class="card-body">
+        <div class="chart-container">
+           <canvas id="sentimentChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results List -->
+  <div class="card">
+    <div class="results-header">
+      <h3>Detail Hasil ({{ total }})</h3>
+      <div class="flex gap-4">
+        <select x-model="filter" class="select btn-sm" style="width: auto">
+          <option value="all">Semua Sentimen</option>
+          <option value="positive">Hanya Positif</option>
+          <option value="negative">Hanya Negatif</option>
+          <option value="neutral">Hanya Netral</option>
+        </select>
+      </div>
+    </div>
+    <div class="divide-y divide-white/5">
+      {% for r in results %}
+      <div class="result-item" x-show="filter === 'all' || filter === '{{ r.sentiment }}'">
+        <div class="min-w-0 flex-1">
+          <a href="{{ r.source_url }}" target="_blank" class="result-title">{{ r.title or r.source_url }}</a>
+          <p class="result-snippet">{{ r.content_snippet }}</p>
+          <div class="result-meta">
+            <span class="uppercase">{{ r.language }}</span>
+            <span>Confidence: {{ "%.1f%%"|format(r.confidence * 100) }}</span>
+            <span>Model: {{ r.model_used }}</span>
+            {% if r.sarcasm_detected %}
+            <span class="text-amber-500 font-semibold">Sarkasme Terdeteksi</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="flex flex-col items-end gap-2">
+          <span class="badge {% if r.sentiment == 'positive' %}badge-positive{% elif r.sentiment == 'negative' %}badge-negative{% else %}badge-neutral{% endif %}">
+            {{ r.sentiment|upper }}
+          </span>
+          <div class="text-[10px] text-muted font-mono">{{ r.analyzed_at.strftime('%H:%M:%S') }}</div>
+        </div>
+      </div>
+      {% endfor %}
+      
+      {% if not results %}
+      <div class="empty">
+        <div class="empty-icon">🔍</div>
+        <div class="empty-text">Tidak ada data hasil analisis untuk ditampilkan.</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endblock %}
+
 {% block scripts %}
-<script>document.addEventListener('DOMContentLoaded',function(){var c=document.getElementById('sc');if(!c)return;var p={{summary.get('positive',{}).get('count',0)}},n={{summary.get('negative',{}).get('count',0)}},u={{summary.get('neutral',{}).get('count',0)}};new Chart(c,{type:'doughnut',data:{labels:['Positif','Negatif','Netral'],datasets:[{data:[p,n,u],backgroundColor:['#10b981','#ef4444','#6b7280'],borderWidth:0}]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{color:'#9ca3af',padding:16}}},cutout:'65%'}});});</script>
+<script>
+function resultsView() {
+  return {
+    filter: 'all',
+    jobKeyword() {
+      const kw = "{{ job.keyword or '' }}";
+      return kw ? `Berdasarkan keyword: "${kw}"` : "Input daftar URL atau teks langsung.";
+    },
+    init() {
+      const ctx = document.getElementById('sentimentChart');
+      if (!ctx) return;
+      
+      const pos = {{ summary.get('positive', {}).get('count', 0) }};
+      const neg = {{ summary.get('negative', {}).get('count', 0) }};
+      const neu = {{ summary.get('neutral', {}).get('count', 0) }};
+      
+      new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Positif', 'Negatif', 'Netral'],
+          datasets: [{
+            data: [pos, neg, neu],
+            backgroundColor: ['#10b981', '#ef4444', '#6b7280'],
+            borderColor: 'rgba(255,255,255,0.05)',
+            borderWidth: 4,
+            hoverOffset: 15
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '75%',
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                color: '#8b8b9e',
+                font: { family: 'Inter', size: 12, weight: '500' },
+                padding: 20,
+                usePointStyle: true
+              }
+            }
+          }
+        }
+      });
+    }
+  };
+}
+</script>
 {% endblock %}
