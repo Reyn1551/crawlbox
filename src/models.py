@@ -4,13 +4,18 @@ from datetime import datetime, timezone
 from sqlalchemy import String, Text, Float, Integer, Boolean, DateTime, JSON
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-class Base(DeclarativeBase): pass
+
+class Base(DeclarativeBase):
+    pass
+
 
 class Job(Base):
     __tablename__ = "jobs"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     status: Mapped[str] = mapped_column(String(20), default="CREATED")
-    input_type: Mapped[str] = mapped_column(String(10))
+    input_type: Mapped[str] = mapped_column(String(20))  # url, keyword, text, social, news, batch
+    source_type: Mapped[str] = mapped_column(String(20), default="web")  # web, twitter, reddit, youtube, news, text
+    keyword: Mapped[str | None] = mapped_column(Text, nullable=True)
     input_data: Mapped[dict] = mapped_column(JSON)
     config: Mapped[dict] = mapped_column(JSON, default=dict)
     progress: Mapped[int] = mapped_column(Integer, default=0)
@@ -19,6 +24,7 @@ class Job(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
 
 class SentimentResult(Base):
     __tablename__ = "sentiment_results"
