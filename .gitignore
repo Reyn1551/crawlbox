@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.env
+data/
+models/indobert-sentiment/
+*.db
+*.log
+.DS_Store
+.pytest_cache/
