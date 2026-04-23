@@ -35,13 +35,19 @@ async def keyword_to_urls(
 
     if engine == "google_scholar":
         return await _search_google_scholar(query, max_results)
-    return await _search_duckduckgo(query, max_results)
+    
+    links = await _search_duckduckgo(query, max_results)
+    if not links:
+        logger.warning("DuckDuckGo mengembalikan 0 hasil (kemungkinan diblokir). Fallback ke Google Scholar...")
+        links = await _search_google_scholar(query, max_results)
+        
+    return links
 
 
 async def _search_duckduckgo(query: str, max_results: int) -> list[str]:
     """Scrape DuckDuckGo Lite HTML results."""
     links: list[str] = []
-    async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
+    async with httpx.AsyncClient(timeout=20, follow_redirects=True, verify=False) as client:
         resp = await client.get(
             f"https://lite.duckduckgo.com/lite/?q={quote(query)}",
             headers=_HEADERS,
@@ -75,7 +81,7 @@ async def _search_google_scholar(query: str, max_results: int) -> list[str]:
     """Scrape Google Scholar results (public, no API key)."""
     links: list[str] = []
     start = 0
-    async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
+    async with httpx.AsyncClient(timeout=20, follow_redirects=True, verify=False) as client:
         while len(links) < max_results:
             resp = await client.get(
                 "https://scholar.google.com/scholar",

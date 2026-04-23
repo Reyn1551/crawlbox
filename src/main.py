@@ -141,6 +141,7 @@ async def create_analysis(req: AnalysisReq):
                    input_data={"urls": valid}, config={"depth": req.depth},
                    started_at=datetime.now(timezone.utc)))
         await s.commit()
+    await tracker.create_job(jid, len(valid) * 3)
     asyncio.create_task(run_analysis_job(
         job_id=jid, urls=valid,
         max_depth=req.depth if req.depth != 2 else None,
@@ -160,6 +161,7 @@ async def create_keyword_analysis(req: KeywordReq):
                    config={"max_results": req.max_results, "engine": req.engine, "depth": req.depth},
                    started_at=datetime.now(timezone.utc)))
         await s.commit()
+    await tracker.create_job(jid, req.max_results * 3)
     asyncio.create_task(run_keyword_job(
         job_id=jid, keyword=req.keyword, max_results=req.max_results,
         engine=req.engine, site_filter=req.site_filter, max_depth=req.depth,
@@ -179,6 +181,7 @@ async def create_text_analysis(req: TextReq):
                    input_data={"texts": valid[:500]}, config={},
                    started_at=datetime.now(timezone.utc)))
         await s.commit()
+    await tracker.create_job(jid, len(valid))
     asyncio.create_task(run_text_job(job_id=jid, texts=valid, db_session_factory=async_session))
     return JobResp(job_id=jid, status="QUEUED", redirect_url=f"/job/{jid}")
 
@@ -196,6 +199,7 @@ async def create_social_analysis(req: SocialReq):
                    config={"max_results": req.max_results},
                    started_at=datetime.now(timezone.utc)))
         await s.commit()
+    await tracker.create_job(jid, req.max_results)
     asyncio.create_task(run_social_job(
         job_id=jid, platform=req.platform, query=req.query,
         max_results=req.max_results, db_session_factory=async_session,
@@ -213,6 +217,7 @@ async def create_news_analysis(req: NewsReq):
                    config={"max_articles": req.max_articles},
                    started_at=datetime.now(timezone.utc)))
         await s.commit()
+    await tracker.create_job(jid, req.max_articles * 2)
     asyncio.create_task(run_news_job(
         job_id=jid, keyword=req.keyword, sources=req.sources,
         feed_url=req.feed_url, max_articles=req.max_articles,

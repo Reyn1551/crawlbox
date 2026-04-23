@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 def main():
     print("="*50+"\nSentimentTools — Model Download\n"+"="*50)
-    model_name="mdhugol/indonesia-sentiment";save_path=Path("./models/indobert-sentiment");save_path.mkdir(parents=True,exist_ok=True)
+    model_name="mdhugol/indonesia-bert-sentiment-classification";save_path=Path("./models/indobert-sentiment");save_path.mkdir(parents=True,exist_ok=True)
     print(f"\n[1/2] Download: {model_name}")
     try:
         from transformers import AutoModelForSequenceClassification,AutoTokenizer

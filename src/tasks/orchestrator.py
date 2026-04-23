@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 async def run_analysis_job(job_id, urls, max_depth=None, db_session_factory=None):
     """Standard URL crawl → analyse pipeline."""
     pipeline = get_pipeline()
-    await tracker.create_job(job_id, len(urls) * 3)
 
     await tracker.update(job_id, status="CRAWLING", event_type="STATUS")
     crawler = AsyncCrawler(max_depth=max_depth)
@@ -37,7 +36,6 @@ async def run_keyword_job(job_id, keyword, max_results=10, engine="duckduckgo", 
     """Keyword search → crawl → analyse pipeline."""
     from src.crawler.search import keyword_to_urls
     pipeline = get_pipeline()
-    await tracker.create_job(job_id, max_results * 3)
     await tracker.update(job_id, status="SEARCHING", event_type="STATUS")
 
     try:
@@ -74,7 +72,6 @@ async def run_keyword_job(job_id, keyword, max_results=10, engine="duckduckgo", 
 async def run_text_job(job_id, texts, db_session_factory=None):
     """Direct text analysis — skip crawling entirely."""
     pipeline = get_pipeline()
-    await tracker.create_job(job_id, len(texts))
     await tracker.update(job_id, status="NLP_PROCESSING", total=len(texts), event_type="STATUS")
     await _run_nlp(job_id, [("direct-input", f"Text #{i+1}", t) for i, t in enumerate(texts)], pipeline, db_session_factory)
 
@@ -83,7 +80,6 @@ async def run_social_job(job_id, platform, query, max_results=50, db_session_fac
     """Social media scrape → analyse pipeline."""
     from src.crawler.social import scrape_social
     pipeline = get_pipeline()
-    await tracker.create_job(job_id, max_results)
     await tracker.update(job_id, status="SCRAPING", event_type="STATUS")
 
     try:
@@ -108,7 +104,6 @@ async def run_news_job(job_id, keyword=None, sources=None, feed_url=None, max_ar
     """News RSS → full article → analyse pipeline."""
     from src.crawler.news import NewsScraper
     pipeline = get_pipeline()
-    await tracker.create_job(job_id, max_articles)
     await tracker.update(job_id, status="SCRAPING", event_type="STATUS")
 
     ns = NewsScraper()

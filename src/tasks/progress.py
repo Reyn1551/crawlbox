@@ -41,7 +41,7 @@ class ProgressTracker:
             # Extract event_type BEFORE updating state to avoid polluting it
             event_type = kw.pop("event_type", "PROGRESS")
             j.update(kw)
-            ev = ProgressEvent(jid=jid, event_type=event_type, data={k: v for k, v in j.items()})
+            ev = ProgressEvent(job_id=jid, event_type=event_type, data={k: v for k, v in j.items()})
             dead: list[asyncio.Queue] = []
             for q in self._subs.get(jid, []):
                 try:
@@ -59,7 +59,7 @@ class ProgressTracker:
             self._subs[jid].append(q)
             j = self._jobs.get(jid)
             if j:
-                q.put_nowait(ProgressEvent(jid=jid, event_type="STATUS", data=dict(j)))
+                q.put_nowait(ProgressEvent(job_id=jid, event_type="STATUS", data=dict(j)))
             return q
 
     async def unsubscribe(self, jid: str, q: asyncio.Queue):
