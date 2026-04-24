@@ -15,7 +15,13 @@ async def run_analysis_job(job_id, urls, max_depth=None, db_session_factory=None
     pipeline = get_pipeline()
 
     await tracker.update(job_id, status="CRAWLING", event_type="STATUS")
-    crawler = AsyncCrawler(max_depth=max_depth)
+    
+    async def _on_res(res):
+        await tracker.update(job_id, current_url=res.url, event_type="CRAWL_RESULT")
+    async def _on_prog(count):
+        await tracker.update(job_id, crawled=count, event_type="PROGRESS")
+        
+    crawler = AsyncCrawler(max_depth=max_depth, on_result=_on_res, on_progress=_on_prog)
     try:
         crawl_results = await crawler.crawl(urls)
     except Exception as e:
@@ -52,7 +58,13 @@ async def run_keyword_job(job_id, keyword, max_results=10, engine="duckduckgo", 
         return
 
     await tracker.update(job_id, status="CRAWLING", total=len(urls), event_type="STATUS")
-    crawler = AsyncCrawler(max_depth=max_depth)
+
+    async def _on_res(res):
+        await tracker.update(job_id, current_url=res.url, event_type="CRAWL_RESULT")
+    async def _on_prog(count):
+        await tracker.update(job_id, crawled=count, event_type="PROGRESS")
+        
+    crawler = AsyncCrawler(max_depth=max_depth, on_result=_on_res, on_progress=_on_prog)
     try:
         crawl_results = await crawler.crawl(urls)
     except Exception as e:
@@ -78,8 +90,10 @@ async def run_text_job(job_id, texts, db_session_factory=None):
 
 async def run_social_job(job_id, platform, query, max_results=50, db_session_factory=None, **kwargs):
     """Social media scrape → analyse pipeline."""
-    from src.crawler.social import scrape_social
+    from src.crawler.social import scrape_social, TwitterScraper, RedditScraper
     pipeline = get_pipeline()
+    include_comments = kwargs.get("include_comments", False)
+    
     await tracker.update(job_id, status="SCRAPING", event_type="STATUS")
 
     try:
@@ -95,9 +109,29 @@ async def run_social_job(job_id, platform, query, max_results=50, db_session_fac
         await _upd(job_id, "FAILED", db_session_factory, "No social posts found")
         return
 
-    await tracker.update(job_id, status="NLP_PROCESSING", total=len(posts), event_type="STATUS")
-    items = [(p.url, f"{p.platform}/@{p.author}", p.text) for p in posts]
-    await _run_nlp(job_id, items, pipeline, db_session_factory)
+    all_items = []
+    for p in posts:
+        all_items.append((p.url, f"{p.platform}/@{p.author}", p.text))
+        
+    if include_comments:
+        await tracker.update(job_id, status="SCRAPING_COMMENTS", event_type="STATUS")
+        comment_tasks = []
+        if platform == "twitter":
+            scr = TwitterScraper()
+            comment_tasks = [scr.get_comments(p.url, max_comments=10) for p in posts if "/status/" in p.url]
+        elif platform == "reddit":
+            scr = RedditScraper()
+            comment_tasks = [scr.get_comments(p.url, max_comments=10) for p in posts]
+            
+        if comment_tasks:
+            results = await asyncio.gather(*comment_tasks, return_exceptions=True)
+            for res in results:
+                if isinstance(res, list):
+                    for c in res:
+                        all_items.append((c.url, f"{c.platform}/@{c.author} (reply)", c.text))
+
+    await tracker.update(job_id, status="NLP_PROCESSING", total=len(all_items), event_type="STATUS")
+    await _run_nlp(job_id, all_items, pipeline, db_session_factory)
 
 
 async def run_news_job(job_id, keyword=None, sources=None, feed_url=None, max_articles=20, db_session_factory=None):
@@ -146,7 +180,17 @@ async def _run_nlp(job_id, items, pipeline, db_session_factory):
         nr = pipeline.analyze(text)
         all_results.append((url, title, text, nr))
         counts[nr.sentiment.value] = counts.get(nr.sentiment.value, 0) + 1
-        await tracker.update(job_id, analyzed=i + 1, progress=int((i + 1) / len(items) * 100), current_url=url, event_type="NLP_RESULT")
+        await tracker.update(
+            job_id, 
+            analyzed=i + 1, 
+            progress=int((i + 1) / len(items) * 100), 
+            current_url=url, 
+            last_title=title,
+            last_sentiment=nr.sentiment.value,
+            last_confidence=nr.confidence,
+            event_type="NLP_RESULT"
+        )
+
 
     if db_session_factory:
         await _save(job_id, all_results, db_session_factory)

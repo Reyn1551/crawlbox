@@ -25,8 +25,41 @@ class TwitterScraper:
             for inst in NITTER:
                 try:
                     r = await c.get(f"{inst}/search", params={"f": "tweets", "q": quote(keyword)}, headers=_H)
-                    if r.status_code == 200: return self._parse(r.text)[:max_results]
+                    if r.status_code == 200: 
+                        posts = self._parse(r.text)
+                        if posts: return posts[:max_results]
                 except: continue
+        
+        # Fallback to DDG if Nitter fails
+        logger.warning(f"Nitter instances failed for Twitter search '{keyword}'. Falling back to DuckDuckGo.")
+        try:
+            from ddgs import DDGS
+            import asyncio
+            def run_ddg():
+                with DDGS() as ddgs:
+                    return list(ddgs.text(f"site:twitter.com {keyword}", max_results=max_results))
+            res = await asyncio.to_thread(run_ddg)
+            posts = []
+            for r in res:
+                # r has 'href', 'title', 'body'
+                text = r.get("body", "")
+                if not text: continue
+                # clean up typical twitter preview text
+                text = re.sub(r"^.*?on X: \"", "", text)
+                text = re.sub(r"\" / X$", "", text)
+                url = r.get("href", "")
+                author = r.get("title", "").split(" on X:")[0] if " on X:" in r.get("title", "") else "twitter_user"
+                posts.append(SocialPost(
+                    platform="twitter",
+                    post_id=url.split("/")[-1] if "/" in url else "",
+                    author=author,
+                    text=text,
+                    url=url
+                ))
+            return posts
+        except Exception as e:
+            logger.error(f"DDG fallback for Twitter failed: {e}")
+            
         return []
 
     async def scrape_user(self, username: str, max_results: int = 50) -> list[SocialPost]:
@@ -35,8 +68,38 @@ class TwitterScraper:
             for inst in NITTER:
                 try:
                     r = await c.get(f"{inst}/{u}", headers=_H)
-                    if r.status_code == 200: return self._parse(r.text)[:max_results]
+                    if r.status_code == 200: 
+                        posts = self._parse(r.text)
+                        if posts: return posts[:max_results]
                 except: continue
+                
+        # Fallback to DDG if Nitter fails
+        logger.warning(f"Nitter instances failed for user '{u}'. Falling back to DuckDuckGo.")
+        try:
+            from ddgs import DDGS
+            import asyncio
+            def run_ddg():
+                with DDGS() as ddgs:
+                    return list(ddgs.text(f"site:twitter.com/{u}", max_results=max_results))
+            res = await asyncio.to_thread(run_ddg)
+            posts = []
+            for r in res:
+                text = r.get("body", "")
+                if not text: continue
+                text = re.sub(r"^.*?on X: \"", "", text)
+                text = re.sub(r"\" / X$", "", text)
+                url = r.get("href", "")
+                posts.append(SocialPost(
+                    platform="twitter",
+                    post_id=url.split("/")[-1] if "/" in url else "",
+                    author=username,
+                    text=text,
+                    url=url
+                ))
+            return posts
+        except Exception as e:
+            logger.error(f"DDG fallback for Twitter user failed: {e}")
+
         return []
 
     async def scrape_hashtag(self, hashtag: str, max_results: int = 50) -> list[SocialPost]:
@@ -52,6 +115,29 @@ class TwitterScraper:
                 posts.append(SocialPost(platform="twitter", post_id=tp.split("/")[-1] if tp else "", author=ue.get_text(strip=True) if ue else "?", text=ce.get_text(strip=True), url=f"https://twitter.com{tp}" if tp else "", timestamp=(item.select_one(".tweet-date a") or {}).get("title", "")))
             except: continue
         return posts
+
+    async def get_comments(self, post_url: str, max_comments: int = 50) -> list[SocialPost]:
+        """Scrape comments from a tweet via Nitter thread page."""
+        path = urlparse(post_url).path
+        async with httpx.AsyncClient(timeout=20, follow_redirects=True) as c:
+            for inst in NITTER:
+                try:
+                    r = await c.get(f"{inst}{path}", headers=_H)
+                    if r.status_code == 200:
+                        soup = BeautifulSoup(r.text, "html.parser")
+                        comments = []
+                        # Comments are usually in .replies div
+                        for item in soup.select(".replies .timeline-item"):
+                            try:
+                                ue = item.select_one(".username"); ce = item.select_one(".tweet-content"); le = item.select_one(".tweet-link")
+                                if not ce: continue
+                                tp = le.get("href", "") if le else ""
+                                comments.append(SocialPost(platform="twitter", post_id=tp.split("/")[-1] if tp else "", author=ue.get_text(strip=True) if ue else "?", text=ce.get_text(strip=True), url=f"https://twitter.com{tp}" if tp else "", timestamp=(item.select_one(".tweet-date a") or {}).get("title", "")))
+                                if len(comments) >= max_comments: break
+                            except: continue
+                        return comments
+                except: continue
+        return []
 
 class RedditScraper:
     async def search(self, keyword: str, subreddit: str | None = None, max_results: int = 50, sort: str = "relevance", time_filter: str = "all") -> list[SocialPost]:
@@ -127,14 +213,55 @@ class YouTubeScraper:
                         out.append(SocialPost(platform="youtube", post_id=cr.get("commentId", ""), author=cr.get("authorText", {}).get("simpleText", "?"), text=txt, url=f"https://youtube.com/watch?v={vid}&lc={cr.get('commentId', '')}", timestamp=(cr.get("publishedTimeText", {}).get("runs", [{}])[0].get("text", "")), likes=int(re.sub(r"[^\d]", "", str(cr.get("voteCount", {}).get("simpleText", "0"))) or "0"), metadata={"video_id": vid}))
         except Exception as e: logger.debug("YT parse: %s", e)
 
+class ThreadsScraper:
+    async def search(self, keyword: str, max_results: int = 50) -> list[SocialPost]:
+        """Search Threads via DuckDuckGo (since Threads is heavily protected)."""
+        from src.crawler.search import keyword_to_urls
+        urls = await keyword_to_urls(keyword, max_results=max_results, site_filter="threads.net")
+        posts = []
+        async with httpx.AsyncClient(timeout=15, headers=_H) as c:
+            for url in urls:
+                try:
+                    # We can't easily parse Threads SPA content without JS, 
+                    # so we'll use the search snippet or try to get meta description
+                    r = await c.get(url)
+                    if r.status_code == 200:
+                        soup = BeautifulSoup(r.text, "html.parser")
+                        desc = soup.find("meta", property="og:description")
+                        author = soup.find("meta", property="og:title")
+                        text = desc["content"] if desc else ""
+                        if not text: continue
+                        # Clean up text if it contains "on Threads"
+                        text = re.sub(r"Threads menyertakan.*?$", "", text).strip()
+                        posts.append(SocialPost(
+                            platform="threads", 
+                            post_id=url.split("/")[-1], 
+                            author=author["content"] if author else "threads_user",
+                            text=text,
+                            url=url
+                        ))
+                except: continue
+        return posts
+
 async def scrape_social(platform: str, query: str, max_results: int = 50, **kw) -> list[SocialPost]:
-    if platform == "twitter":
-        s = TwitterScraper()
-        if query.startswith("@"): return await s.scrape_user(query, max_results)
-        if query.startswith("#"): return await s.scrape_hashtag(query, max_results)
-        return await s.search(query, max_results)
-    elif platform == "reddit":
-        return await RedditScraper().search(query, subreddit=kw.get("subreddit"), max_results=max_results)
-    elif platform == "youtube":
-        return await YouTubeScraper().get_comments(query, max_results)
-    return []
+    queries = [q.strip() for q in query.split(",") if q.strip()]
+    all_posts = []
+    
+    for q in queries:
+        posts = []
+        if platform == "twitter":
+            s = TwitterScraper()
+            if q.startswith("@"): posts = await s.scrape_user(q, max_results)
+            elif q.startswith("#"): posts = await s.scrape_hashtag(q, max_results)
+            else: posts = await s.search(q, max_results)
+        elif platform == "reddit":
+            posts = await RedditScraper().search(q, subreddit=kw.get("subreddit"), max_results=max_results)
+        elif platform == "youtube":
+            posts = await YouTubeScraper().get_comments(q, max_results)
+        elif platform == "threads":
+            posts = await ThreadsScraper().search(q, max_results)
+        
+        all_posts.extend(posts)
+        if len(all_posts) >= max_results * len(queries): break
+
+    return all_posts[:max_results * len(queries)]

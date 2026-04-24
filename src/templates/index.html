@@ -100,6 +100,7 @@
           <label class="label">Pilih Platform</label>
           <div class="chips">
             <button class="chip" :class="social.platform === 'twitter' ? 'selected' : ''" @click="social.platform = 'twitter'">Twitter/X</button>
+            <button class="chip" :class="social.platform === 'threads' ? 'selected' : ''" @click="social.platform = 'threads'">Threads</button>
             <button class="chip" :class="social.platform === 'reddit' ? 'selected' : ''" @click="social.platform = 'reddit'">Reddit</button>
             <button class="chip" :class="social.platform === 'youtube' ? 'selected' : ''" @click="social.platform = 'youtube'">YouTube</button>
           </div>
@@ -113,6 +114,12 @@
             <label class="label">Subreddit (Opsional)</label>
             <input type="text" x-model="social.subreddit" class="input" placeholder="Contoh: indonesia">
           </div>
+        </div>
+        <div class="form-group" x-show="['twitter', 'reddit'].includes(social.platform)">
+          <label class="checkbox-label">
+            <input type="checkbox" x-model="social.includeComments">
+            Sertakan Komentar / Balasan (Threads)
+          </label>
         </div>
         <div class="form-group">
           <label class="label">Jumlah Post/Komentar</label>
@@ -190,7 +197,7 @@ function app() {
     url: { raw: '', depth: 2, js: false },
     keyword: { query: '', limit: 10, engine: 'duckduckgo', site: '' },
     text: { raw: '' },
-    social: { platform: 'twitter', query: '', limit: 50, subreddit: '' },
+    social: { platform: 'twitter', query: '', limit: 50, subreddit: '', includeComments: false },
     news: { query: '', sources: ['kompas', 'detik'], limit: 10 },
     batch: { file: null },
 
@@ -200,12 +207,13 @@ function app() {
 
     socialLabel() {
       if (this.social.platform === 'youtube') return 'URL Video YouTube';
-      return 'Keyword / Username / Hashtag';
+      return 'Keyword / Username / Hashtag (Pisahkan dengan koma)';
     },
 
     socialPlaceholder() {
       if (this.social.platform === 'youtube') return 'https://www.youtube.com/watch?v=...';
-      if (this.social.platform === 'twitter') return 'Contoh: @jokowi atau #pemilu';
+      if (this.social.platform === 'twitter') return 'Contoh: @jokowi, #pemilu, korupsi';
+      if (this.social.platform === 'threads') return 'Contoh: @zuck, threads news';
       return 'Keyword reddit...';
     },
 
@@ -252,7 +260,7 @@ function app() {
             max_results: parseInt(this.keyword.limit),
             engine: this.keyword.engine,
             site_filter: this.keyword.site || null,
-            depth: 1
+            depth: 0
           };
         } else if (this.activeTab === 'text') {
           endpoint = '/api/v1/text';
@@ -265,7 +273,8 @@ function app() {
             platform: this.social.platform,
             query: this.social.query,
             max_results: parseInt(this.social.limit),
-            subreddit: this.social.subreddit || null
+            subreddit: this.social.subreddit || null,
+            include_comments: this.social.includeComments
           };
         } else if (this.activeTab === 'news') {
           endpoint = '/api/v1/news';

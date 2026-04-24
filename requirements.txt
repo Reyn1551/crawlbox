@@ -11,4 +11,5 @@ lxml>=5.2.0
 onnxruntime>=1.18.0
 transformers>=4.42.0
 langdetect>=1.0.9
-openai>=1.35.0
+openai>=1.35.0pypdf>=4.2.0
+ddgs>=9.14.0

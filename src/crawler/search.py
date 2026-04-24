@@ -45,34 +45,20 @@ async def keyword_to_urls(
 
 
 async def _search_duckduckgo(query: str, max_results: int) -> list[str]:
-    """Scrape DuckDuckGo Lite HTML results."""
+    """Search DuckDuckGo using the ddgs library (bypasses bot protection)."""
     links: list[str] = []
-    async with httpx.AsyncClient(timeout=20, follow_redirects=True, verify=False) as client:
-        resp = await client.get(
-            f"https://lite.duckduckgo.com/lite/?q={quote(query)}",
-            headers=_HEADERS,
-        )
-        soup = BeautifulSoup(resp.text, "html.parser")
-
-    for a in soup.find_all("a", href=True):
-        href: str = a["href"]
-        if not href.startswith("http"):
-            continue
-        if "duckduckgo" in href:
-            # Extract the actual destination from redirect URLs
-            parsed = urlparse(href)
-            qs = parse_qs(parsed.query)
-            if "uddg" in qs:
-                href = unquote(qs["uddg"][0])
-            else:
-                continue
-
-        href = href.split("#")[0].rstrip("/")
-        if href and href not in links:
-            links.append(href)
-        if len(links) >= max_results:
-            break
-
+    try:
+        from ddgs import DDGS
+        import asyncio
+        
+        def run_ddg():
+            with DDGS() as ddgs:
+                return [r["href"] for r in ddgs.text(query, max_results=max_results)]
+                
+        links = await asyncio.to_thread(run_ddg)
+    except Exception as e:
+        logger.error("DDGS error: %s", e)
+        
     logger.info("DuckDuckGo: %d results for %r", len(links), query)
     return links
 

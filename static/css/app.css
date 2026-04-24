@@ -324,3 +324,49 @@ body {
 .footer { text-align: center; padding: 32px 24px; color: var(--text-muted); font-size: 0.75rem; border-top: 1px solid var(--border); margin-top: 48px; }
 .footer a { color: var(--accent); text-decoration: none; }
 .footer a:hover { text-decoration: underline; }
+/* ── Job Progress Layout ─────────────────────────────────────────── */
+.job-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; }
+.job-grid { display: grid; grid-template-columns: 1fr; gap: 24px; margin-bottom: 32px; }
+@media (min-width: 768px) { .job-grid { grid-template-columns: repeat(3, 1fr); } }
+.job-main { grid-column: span 1; }
+@media (min-width: 768px) { .job-main { grid-column: span 2; } }
+.job-sidebar { grid-column: span 1; }
+
+.progress-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 8px; }
+.progress-bar { width: 100%; background: var(--bg-secondary); border-radius: 4px; overflow: hidden; height: 8px; }
+.progress-fill { height: 100%; transition: width 0.3s ease; }
+.progress-fill.crawling { background: var(--info); }
+.progress-fill.nlp { background: var(--mixed); }
+.progress-fill.completed { background: var(--positive); }
+.progress-fill.error { background: var(--negative); }
+
+.stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 32px; }
+.stat-box { text-align: center; padding: 12px; background: var(--bg-glass); border-radius: var(--radius-sm); border: 1px solid var(--border); }
+.stat-value { font-size: 1.25rem; font-weight: 700; }
+.stat-label { font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600; margin-top: 4px; }
+
+.sentiment-dist { display: flex; flex-direction: column; gap: 12px; }
+.dist-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; margin-bottom: 4px; }
+
+.log-console { background: #000; border-radius: var(--radius-sm); padding: 12px; font-family: 'JetBrains Mono', monospace, 'Inter'; font-size: 0.75rem; max-height: 300px; overflow-y: auto; border: 1px solid var(--border); }
+.log-entry { margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.03); opacity: 0.8; }
+.log-entry:last-child { border-bottom: none; margin-bottom: 0; }
+.log-entry.crawl { color: var(--info); }
+.log-entry.nlp { color: var(--mixed); }
+.log-entry.error { color: var(--negative); }
+.log-entry.done { color: var(--positive); }
+
+.job-table { width: 100%; text-align: left; font-size: 0.85rem; border-collapse: collapse; }
+.job-table th { padding: 12px 16px; font-weight: 600; color: var(--text-secondary); background: var(--bg-secondary); position: sticky; top: 0; }
+.job-table td { padding: 12px 16px; border-top: 1px solid var(--border); max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.job-table tr:hover td { background: var(--bg-glass); }
+
+.alert { padding: 16px; border-radius: var(--radius-sm); margin-top: 24px; }
+.alert-error { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); }
+.actions { display: flex; gap: 12px; margin-top: 24px; }
+.text-info { color: var(--info); }
+.text-mixed { color: var(--mixed); }
+.text-positive { color: var(--positive); }
+.text-negative { color: var(--negative); }
+.text-neutral { color: var(--neutral); }
+.text-primary { color: var(--text-primary); }

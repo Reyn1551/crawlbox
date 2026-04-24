@@ -55,7 +55,7 @@ class ProgressTracker:
         async with self._lock:
             if jid not in self._subs:
                 self._subs[jid] = []
-            q: asyncio.Queue = asyncio.Queue(maxsize=100)
+            q: asyncio.Queue = asyncio.Queue(maxsize=0)
             self._subs[jid].append(q)
             j = self._jobs.get(jid)
             if j:

@@ -106,9 +106,15 @@ class AsyncCrawler:
                 if result:
                     results.append(result)
                     if self.on_result:
-                        self.on_result(result)
+                        if asyncio.iscoroutinefunction(self.on_result):
+                            await self.on_result(result)
+                        else:
+                            self.on_result(result)
                     if self.on_progress:
-                        self.on_progress(len(results))
+                        if asyncio.iscoroutinefunction(self.on_progress):
+                            await self.on_progress(len(results))
+                        else:
+                            self.on_progress(len(results))
                     if depth < self.max_depth:
                         for link in result.links[:20]:
                             child = self._normalise(link)
@@ -128,28 +134,53 @@ class AsyncCrawler:
                 ) as client:
                     resp = await client.get(url, headers=self._headers())
                     resp.raise_for_status()
-                    soup = BeautifulSoup(resp.text, "lxml")
-                    text = extract_main_content(soup)
-                    links = [urljoin(url, a.get("href", "")) for a in soup.find_all("a", href=True)]
-                    title = soup.title.string.strip() if soup.title and soup.title.string else ""
-                    og_title = soup.find("meta", property="og:title")
-                    og_desc = soup.find("meta", property="og:description")
-                    return CrawlResult(
-                        url=url,
-                        title=title,
-                        text=text,
-                        status_code=resp.status_code,
-                        links=links,
-                        metadata={
-                            "og_title": og_title.get("content", "") if og_title else "",
-                            "og_description": og_desc.get("content", "") if og_desc else "",
-                        },
-                    )
+                    content_type = resp.headers.get("Content-Type", "").lower()
+                    
+                    if "application/pdf" in content_type:
+                        try:
+                            import io
+                            import pypdf
+                            pdf = pypdf.PdfReader(io.BytesIO(resp.content))
+                            text_pages = [page.extract_text() for page in pdf.pages if page.extract_text()]
+                            text = "\n".join(text_pages)
+                            title = url.split("/")[-1]
+                            if pdf.metadata and pdf.metadata.title:
+                                title = pdf.metadata.title
+                            return CrawlResult(
+                                url=url,
+                                title=title,
+                                text=text,
+                                status_code=resp.status_code,
+                                metadata={"is_pdf": True}
+                            )
+                        except Exception as e:
+                            logger.error("Failed to parse PDF %s: %s", url, e)
+                            return None
+                    elif "text/html" in content_type or "application/xhtml+xml" in content_type or not content_type:
+                        soup = BeautifulSoup(resp.text, "lxml")
+                        text = extract_main_content(soup)
+                        links = [urljoin(url, a.get("href", "")) for a in soup.find_all("a", href=True)]
+                        title = soup.title.string.strip() if soup.title and soup.title.string else ""
+                        og_title = soup.find("meta", property="og:title")
+                        og_desc = soup.find("meta", property="og:description")
+                        return CrawlResult(
+                            url=url,
+                            title=title,
+                            text=text,
+                            status_code=resp.status_code,
+                            links=links,
+                            metadata={
+                                "og_title": og_title.get("content", "") if og_title else "",
+                                "og_description": og_desc.get("content", "") if og_desc else "",
+                            },
+                        )
+                    else:
+                        return None
             except Exception as exc:
                 if attempt < 2:
                     logger.debug("Retry %d for %s: %s", attempt + 1, url, exc)
                     await asyncio.sleep(2**attempt)
                     continue
-                logger.warning("Failed to fetch %s after 3 attempts: %s", url, exc)
+                logger.debug("Failed to fetch %s after 3 attempts: %s", url, exc)
                 return None
         return None

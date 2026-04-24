@@ -56,16 +56,17 @@ class KeywordReq(BaseModel):
     max_results: int = 10
     engine: str = "duckduckgo"
     site_filter: str | None = None
-    depth: int = 1
+    depth: int = 0
 
 class TextReq(BaseModel):
     texts: list[str]
 
 class SocialReq(BaseModel):
-    platform: str  # twitter, reddit, youtube
+    platform: str  # twitter, reddit, youtube, threads
     query: str
     max_results: int = 50
     subreddit: str | None = None
+    include_comments: bool = False
 
 class NewsReq(BaseModel):
     keyword: str | None = None
@@ -188,8 +189,8 @@ async def create_text_analysis(req: TextReq):
 
 @app.post("/api/v1/social", response_model=JobResp)
 async def create_social_analysis(req: SocialReq):
-    if req.platform not in ("twitter", "reddit", "youtube"):
-        raise HTTPException(400, "Platform: twitter, reddit, youtube")
+    if req.platform not in ("twitter", "reddit", "youtube", "threads"):
+        raise HTTPException(400, "Platform: twitter, reddit, youtube, threads")
     if not req.query.strip():
         raise HTTPException(400, "Query required")
     jid = str(uuid4())
@@ -203,7 +204,7 @@ async def create_social_analysis(req: SocialReq):
     asyncio.create_task(run_social_job(
         job_id=jid, platform=req.platform, query=req.query,
         max_results=req.max_results, db_session_factory=async_session,
-        subreddit=req.subreddit,
+        subreddit=req.subreddit, include_comments=req.include_comments
     ))
     return JobResp(job_id=jid, status="QUEUED", redirect_url=f"/job/{jid}")
 

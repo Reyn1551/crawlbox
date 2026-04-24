@@ -2,68 +2,68 @@
 {% block title %}Proses Analisis — SentimentTools{% endblock %}
 
 {% block content %}
-<section x-data="jobProgress('{{ job_id }}', {{ initial_state | tojson }})" class="animate-in">
-  <div class="flex items-center justify-between mb-8">
+<section x-data='jobProgress("{{ job_id }}", {{ initial_state | tojson }})' class="animate-in">
+  <div class="job-header">
     <div>
       <h1 class="hero-title">Proses Analisis</h1>
-      <p class="hero-sub font-mono text-xs opacity-50">{{ job_id }}</p>
+      <p class="hero-sub" style="font-family: monospace; font-size: 0.75rem; opacity: 0.5; margin-bottom: 0;">{{ job_id }}</p>
     </div>
     <span :class="statusClass()" x-text="statusLabel()" class="badge"></span>
   </div>
 
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+  <div class="job-grid">
     <!-- Progress Card -->
-    <div class="card md:col-span-2">
+    <div class="card job-main">
       <div class="card-body">
-        <div class="flex justify-between items-end mb-2">
-          <span class="text-sm font-semibold" x-text="phaseLabel()"></span>
-          <span class="text-xs text-muted" x-text="progress + '%'"></span>
+        <div class="progress-header">
+          <span style="font-size: 0.88rem; font-weight: 600;" x-text="phaseLabel()"></span>
+          <span style="font-size: 0.75rem; color: var(--text-muted);" x-text="progress + '%'"></span>
         </div>
         <div class="progress-bar">
           <div class="progress-fill" :class="phaseClass()" :style="'width: ' + progress + '%'"></div>
         </div>
         
-        <div class="mt-8 grid grid-cols-3 gap-4">
-          <div class="text-center p-3 bg-white/5 rounded-xl border border-white/5">
-            <div class="text-xl font-bold text-info" x-text="crawled">0</div>
-            <div class="text-[10px] uppercase text-muted font-semibold mt-1">Crawled</div>
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-value text-info" x-text="crawled">0</div>
+            <div class="stat-label">Crawled</div>
           </div>
-          <div class="text-center p-3 bg-white/5 rounded-xl border border-white/5">
-            <div class="text-xl font-bold text-mixed" x-text="analyzed">0</div>
-            <div class="text-[10px] uppercase text-muted font-semibold mt-1">Analyzed</div>
+          <div class="stat-box">
+            <div class="stat-value text-mixed" x-text="analyzed">0</div>
+            <div class="stat-label">Analyzed</div>
           </div>
-          <div class="text-center p-3 bg-white/5 rounded-xl border border-white/5">
-            <div class="text-xl font-bold text-amber-500" x-text="total">0</div>
-            <div class="text-[10px] uppercase text-muted font-semibold mt-1">Total</div>
+          <div class="stat-box">
+            <div class="stat-value" style="color: var(--accent);" x-text="total">0</div>
+            <div class="stat-label">Total</div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Summary Preview (Only when completed or progressing) -->
-    <div class="card" x-show="summary" x-transition>
+    <!-- Summary Preview -->
+    <div class="card job-sidebar" x-show="summary" x-transition>
       <div class="card-header">Distribusi Sentimen</div>
       <div class="card-body p-4">
-        <div class="space-y-3">
-          <div class="flex justify-between items-center text-xs">
-            <span class="text-positive font-medium">Positif</span>
-            <span class="text-primary font-bold" x-text="summary?.positive_pct + '%'"></span>
+        <div class="sentiment-dist">
+          <div class="dist-row">
+            <span style="color: var(--positive); font-weight: 500;">Positif</span>
+            <span style="font-weight: 700;" x-text="summary?.positive_pct + '%'"></span>
           </div>
           <div class="progress-bar" style="height: 4px">
             <div class="progress-fill" style="background: var(--positive)" :style="'width: ' + summary?.positive_pct + '%'"></div>
           </div>
           
-          <div class="flex justify-between items-center text-xs">
-            <span class="text-negative font-medium">Negatif</span>
-            <span class="text-primary font-bold" x-text="summary?.negative_pct + '%'"></span>
+          <div class="dist-row">
+            <span style="color: var(--negative); font-weight: 500;">Negatif</span>
+            <span style="font-weight: 700;" x-text="summary?.negative_pct + '%'"></span>
           </div>
           <div class="progress-bar" style="height: 4px">
             <div class="progress-fill" style="background: var(--negative)" :style="'width: ' + summary?.negative_pct + '%'"></div>
           </div>
           
-          <div class="flex justify-between items-center text-xs">
-            <span class="text-neutral font-medium">Netral</span>
-            <span class="text-primary font-bold" x-text="summary?.neutral_pct + '%'"></span>
+          <div class="dist-row">
+            <span style="color: var(--neutral); font-weight: 500;">Netral</span>
+            <span style="font-weight: 700;" x-text="summary?.neutral_pct + '%'"></span>
           </div>
           <div class="progress-bar" style="height: 4px">
             <div class="progress-fill" style="background: var(--neutral)" :style="'width: ' + summary?.neutral_pct + '%'"></div>
@@ -81,16 +81,47 @@
         <template x-for="(entry, index) in log" :key="index">
           <div class="log-entry" :class="entry.type" x-text="entry.msg"></div>
         </template>
-        <div x-show="!log.length" class="text-center py-8 opacity-20">Menunggu aktivitas...</div>
+        <div x-show="!log.length" style="text-align: center; padding: 32px 0; opacity: 0.2;">Menunggu aktivitas...</div>
       </div>
     </div>
   </div>
 
+  <!-- Real-time Data Preview -->
+  <div class="card" style="margin-top: 24px;" x-show="results.length > 0" x-transition>
+    <div class="card-header">Data Analisis (Real-time)</div>
+    <div class="card-body" style="padding: 0; overflow-x: auto; max-height: 400px; overflow-y: auto;">
+      <table class="job-table">
+        <thead>
+          <tr>
+            <th>Judul / URL</th>
+            <th>Sentimen</th>
+            <th style="text-align: right;">Confidence</th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="(res, idx) in results.slice().reverse()" :key="idx">
+            <tr>
+              <td>
+                <a :href="res.url" target="_blank" style="color: var(--text-primary); text-decoration: none; font-weight: 500;" x-text="res.title || res.url"></a>
+              </td>
+              <td>
+                <span class="badge" 
+                      :class="res.sentiment === 'positive' ? 'badge-positive' : (res.sentiment === 'negative' ? 'badge-negative' : 'badge-neutral')"
+                      x-text="res.sentiment"></span>
+              </td>
+              <td style="text-align: right; opacity: 0.8;" x-text="(res.confidence * 100).toFixed(1) + '%'"></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Error Alert -->
-  <div x-show="status === 'ERROR'" class="alert alert-error animate-in mt-6">
-    <div class="font-bold mb-1">Gagal menjalankan job</div>
-    <div class="text-sm opacity-80" x-text="errorMsg"></div>
-    <div class="mt-4">
+  <div x-show="status === 'ERROR'" class="alert alert-error animate-in">
+    <div style="font-weight: 700; margin-bottom: 4px;">Gagal menjalankan job</div>
+    <div style="font-size: 0.88rem; opacity: 0.8;" x-text="errorMsg"></div>
+    <div style="margin-top: 16px;">
       <a href="/" class="btn btn-danger btn-sm">Kembali ke Home</a>
     </div>
   </div>
@@ -117,6 +148,7 @@ function jobProgress(jid, init) {
     errorMsg: init.error_message || '',
     summary: null,
     log: [],
+    results: [],
     es: null,
 
     init() {
@@ -156,6 +188,12 @@ function jobProgress(jid, init) {
 
       if (m.type === 'NLP_RESULT') {
         this.log.push({ type: 'nlp', msg: `🧠 Analyzed: ${m.data.current_url}` });
+        this.results.push({
+          url: m.data.current_url,
+          title: m.data.last_title,
+          sentiment: m.data.last_sentiment,
+          confidence: m.data.last_confidence || 0
+        });
         this.analyzed = m.data.analyzed;
         this.progress = m.data.progress;
       }
@@ -170,6 +208,9 @@ function jobProgress(jid, init) {
           neutral_pct: m.data.neutral_pct
         };
         this.log.push({ type: 'done', msg: '✅ Selesai! Semua data telah diproses.' });
+        setTimeout(() => {
+          alert('✅ Proses Analisis Selesai! Anda bisa melihat hasilnya sekarang.');
+        }, 300);
       }
 
       if (m.type === 'ERROR') {
@@ -192,6 +233,7 @@ function jobProgress(jid, init) {
         QUEUED: 'Antrian',
         SEARCHING: 'Mencari',
         SCRAPING: 'Scraping',
+        SCRAPING_COMMENTS: 'Scraping Komentar',
         CRAWLING: 'Crawling',
         NLP_PROCESSING: 'Analisis NLP',
         COMPLETED: 'Selesai',
@@ -205,6 +247,7 @@ function jobProgress(jid, init) {
         QUEUED: 'badge-warning',
         SEARCHING: 'badge-info',
         SCRAPING: 'badge-info',
+        SCRAPING_COMMENTS: 'badge-info',
         CRAWLING: 'badge-info',
         NLP_PROCESSING: 'badge-mixed',
         COMPLETED: 'badge-positive',
@@ -216,7 +259,7 @@ function jobProgress(jid, init) {
     phaseLabel() {
       if (this.status === 'COMPLETED') return 'Analisis Selesai';
       if (this.status === 'NLP_PROCESSING') return 'Menganalisis Sentimen...';
-      if (this.status === 'CRAWLING' || this.status === 'SCRAPING') return 'Mengambil Data Konten...';
+      if (this.status === 'CRAWLING' || this.status === 'SCRAPING' || this.status === 'SCRAPING_COMMENTS') return 'Mengambil Data Konten...';
       if (this.status === 'SEARCHING') return 'Mencari URL di Search Engine...';
       return 'Mempersiapkan...';
     },
