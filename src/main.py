@@ -62,7 +62,7 @@ class TextReq(BaseModel):
     texts: list[str]
 
 class SocialReq(BaseModel):
-    platform: str  # twitter, reddit, youtube, threads
+    platforms: list[str]  # twitter, reddit, youtube, threads, tiktok, instagram, facebook, linkedin
     query: str
     max_results: int = 50
     subreddit: str | None = None
@@ -189,20 +189,21 @@ async def create_text_analysis(req: TextReq):
 
 @app.post("/api/v1/social", response_model=JobResp)
 async def create_social_analysis(req: SocialReq):
-    if req.platform not in ("twitter", "reddit", "youtube", "threads"):
-        raise HTTPException(400, "Platform: twitter, reddit, youtube, threads")
+    valid_platforms = {"twitter", "reddit", "youtube", "threads", "tiktok", "instagram", "facebook", "linkedin"}
+    if not req.platforms or not all(p in valid_platforms for p in req.platforms):
+        raise HTTPException(400, f"Valid platforms: {', '.join(valid_platforms)}")
     if not req.query.strip():
         raise HTTPException(400, "Query required")
     jid = str(uuid4())
     async with async_session() as s:
-        s.add(Job(id=jid, status="QUEUED", input_type="social", source_type=req.platform,
-                   keyword=req.query, input_data={"platform": req.platform, "query": req.query},
+        s.add(Job(id=jid, status="QUEUED", input_type="social", source_type=",".join(req.platforms),
+                   keyword=req.query, input_data={"platforms": req.platforms, "query": req.query},
                    config={"max_results": req.max_results},
                    started_at=datetime.now(timezone.utc)))
         await s.commit()
-    await tracker.create_job(jid, req.max_results)
+    await tracker.create_job(jid, req.max_results * len(req.platforms))
     asyncio.create_task(run_social_job(
-        job_id=jid, platform=req.platform, query=req.query,
+        job_id=jid, platforms=req.platforms, query=req.query,
         max_results=req.max_results, db_session_factory=async_session,
         subreddit=req.subreddit, include_comments=req.include_comments
     ))

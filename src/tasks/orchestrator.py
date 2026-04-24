@@ -88,7 +88,7 @@ async def run_text_job(job_id, texts, db_session_factory=None):
     await _run_nlp(job_id, [("direct-input", f"Text #{i+1}", t) for i, t in enumerate(texts)], pipeline, db_session_factory)
 
 
-async def run_social_job(job_id, platform, query, max_results=50, db_session_factory=None, **kwargs):
+async def run_social_job(job_id, platforms, query, max_results=50, db_session_factory=None, **kwargs):
     """Social media scrape → analyse pipeline."""
     from src.crawler.social import scrape_social, TwitterScraper, RedditScraper
     pipeline = get_pipeline()
@@ -96,32 +96,37 @@ async def run_social_job(job_id, platform, query, max_results=50, db_session_fac
     
     await tracker.update(job_id, status="SCRAPING", event_type="STATUS")
 
-    try:
-        posts = await scrape_social(platform, query, max_results, **kwargs)
-    except Exception as e:
-        logger.error("Social scrape gagal %s: %s", job_id, e)
-        await tracker.update(job_id, status="ERROR", error_message=str(e), event_type="ERROR")
-        await _upd(job_id, "FAILED", db_session_factory, str(e))
-        return
+    all_posts = []
+    errors = []
+    for platform in platforms:
+        try:
+            posts = await scrape_social(platform, query, max_results, **kwargs)
+            all_posts.extend(posts)
+        except Exception as e:
+            logger.error("Social scrape gagal untuk %s pada job %s: %s", platform, job_id, e)
+            errors.append(f"{platform}: {e}")
 
-    if not posts:
-        await tracker.update(job_id, status="ERROR", error_message="No social posts found", event_type="ERROR")
-        await _upd(job_id, "FAILED", db_session_factory, "No social posts found")
+    if not all_posts:
+        err_msg = "; ".join(errors) if errors else "No social posts found on any platform"
+        await tracker.update(job_id, status="ERROR", error_message=err_msg, event_type="ERROR")
+        await _upd(job_id, "FAILED", db_session_factory, err_msg)
         return
 
     all_items = []
-    for p in posts:
+    for p in all_posts:
         all_items.append((p.url, f"{p.platform}/@{p.author}", p.text))
         
     if include_comments:
         await tracker.update(job_id, status="SCRAPING_COMMENTS", event_type="STATUS")
         comment_tasks = []
-        if platform == "twitter":
-            scr = TwitterScraper()
-            comment_tasks = [scr.get_comments(p.url, max_comments=10) for p in posts if "/status/" in p.url]
-        elif platform == "reddit":
-            scr = RedditScraper()
-            comment_tasks = [scr.get_comments(p.url, max_comments=10) for p in posts]
+        for p in all_posts:
+            if p.platform == "twitter":
+                scr = TwitterScraper()
+                if "/status/" in p.url:
+                    comment_tasks.append(scr.get_comments(p.url, max_comments=10))
+            elif p.platform == "reddit":
+                scr = RedditScraper()
+                comment_tasks.append(scr.get_comments(p.url, max_comments=10))
             
         if comment_tasks:
             results = await asyncio.gather(*comment_tasks, return_exceptions=True)

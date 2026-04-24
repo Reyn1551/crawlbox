@@ -243,6 +243,47 @@ class ThreadsScraper:
                 except: continue
         return posts
 
+class GenericSearchScraper:
+    async def search(self, platform: str, keyword: str, max_results: int = 50) -> list[SocialPost]:
+        """Search generic platforms via DuckDuckGo."""
+        domains = {
+            "tiktok": "tiktok.com",
+            "instagram": "instagram.com",
+            "facebook": "facebook.com",
+            "linkedin": "linkedin.com/posts"
+        }
+        domain = domains.get(platform)
+        if not domain: return []
+        
+        posts = []
+        try:
+            from ddgs import DDGS
+            import asyncio
+            def run_ddg():
+                with DDGS() as ddgs:
+                    return list(ddgs.text(f"site:{domain} {keyword}", max_results=max_results))
+            res = await asyncio.to_thread(run_ddg)
+            
+            for r in res:
+                text = r.get("body", "")
+                if not text: continue
+                # clean up text
+                text = re.sub(f".*? on {platform.title()}: \"", "", text, flags=re.IGNORECASE)
+                text = re.sub(r"\"$", "", text)
+                url = r.get("href", "")
+                author = r.get("title", "").split(" on ")[0] if " on " in r.get("title", "") else f"{platform}_user"
+                posts.append(SocialPost(
+                    platform=platform,
+                    post_id=url.split("/")[-1] if "/" in url else "",
+                    author=author,
+                    text=text,
+                    url=url
+                ))
+        except Exception as e:
+            logger.error(f"DDG generic search failed for {platform}: {e}")
+            
+        return posts
+
 async def scrape_social(platform: str, query: str, max_results: int = 50, **kw) -> list[SocialPost]:
     queries = [q.strip() for q in query.split(",") if q.strip()]
     all_posts = []
@@ -260,8 +301,11 @@ async def scrape_social(platform: str, query: str, max_results: int = 50, **kw) 
             posts = await YouTubeScraper().get_comments(q, max_results)
         elif platform == "threads":
             posts = await ThreadsScraper().search(q, max_results)
+        elif platform in ["tiktok", "instagram", "facebook", "linkedin"]:
+            posts = await GenericSearchScraper().search(platform, q, max_results)
         
         all_posts.extend(posts)
         if len(all_posts) >= max_results * len(queries): break
 
     return all_posts[:max_results * len(queries)]
+

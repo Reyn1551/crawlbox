@@ -99,26 +99,30 @@
         <div class="form-group">
           <label class="label">Pilih Platform</label>
           <div class="chips">
-            <button class="chip" :class="social.platform === 'twitter' ? 'selected' : ''" @click="social.platform = 'twitter'">Twitter/X</button>
-            <button class="chip" :class="social.platform === 'threads' ? 'selected' : ''" @click="social.platform = 'threads'">Threads</button>
-            <button class="chip" :class="social.platform === 'reddit' ? 'selected' : ''" @click="social.platform = 'reddit'">Reddit</button>
-            <button class="chip" :class="social.platform === 'youtube' ? 'selected' : ''" @click="social.platform = 'youtube'">YouTube</button>
+            <button class="chip" :class="social.platforms.includes('twitter') ? 'selected' : ''" @click="togglePlatform('twitter')">Twitter/X</button>
+            <button class="chip" :class="social.platforms.includes('threads') ? 'selected' : ''" @click="togglePlatform('threads')">Threads</button>
+            <button class="chip" :class="social.platforms.includes('tiktok') ? 'selected' : ''" @click="togglePlatform('tiktok')">TikTok</button>
+            <button class="chip" :class="social.platforms.includes('instagram') ? 'selected' : ''" @click="togglePlatform('instagram')">Instagram</button>
+            <button class="chip" :class="social.platforms.includes('facebook') ? 'selected' : ''" @click="togglePlatform('facebook')">Facebook</button>
+            <button class="chip" :class="social.platforms.includes('linkedin') ? 'selected' : ''" @click="togglePlatform('linkedin')">LinkedIn</button>
+            <button class="chip" :class="social.platforms.includes('reddit') ? 'selected' : ''" @click="togglePlatform('reddit')">Reddit</button>
+            <button class="chip" :class="social.platforms.includes('youtube') ? 'selected' : ''" @click="togglePlatform('youtube')">YouTube</button>
           </div>
         </div>
         <div class="form-group">
           <label class="label" x-text="socialLabel()"></label>
           <input type="text" x-model="social.query" class="input" :placeholder="socialPlaceholder()">
         </div>
-        <div class="form-row" x-show="social.platform === 'reddit'">
+        <div class="form-row" x-show="social.platforms.includes('reddit')">
           <div class="form-group">
             <label class="label">Subreddit (Opsional)</label>
             <input type="text" x-model="social.subreddit" class="input" placeholder="Contoh: indonesia">
           </div>
         </div>
-        <div class="form-group" x-show="['twitter', 'reddit'].includes(social.platform)">
+        <div class="form-group" x-show="social.platforms.includes('twitter') || social.platforms.includes('reddit')">
           <label class="checkbox-label">
             <input type="checkbox" x-model="social.includeComments">
-            Sertakan Komentar / Balasan (Threads)
+            Sertakan Komentar / Balasan (Twitter & Reddit)
           </label>
         </div>
         <div class="form-group">
@@ -197,7 +201,7 @@ function app() {
     url: { raw: '', depth: 2, js: false },
     keyword: { query: '', limit: 10, engine: 'duckduckgo', site: '' },
     text: { raw: '' },
-    social: { platform: 'twitter', query: '', limit: 50, subreddit: '', includeComments: false },
+    social: { platforms: ['twitter'], query: '', limit: 50, subreddit: '', includeComments: false },
     news: { query: '', sources: ['kompas', 'detik'], limit: 10 },
     batch: { file: null },
 
@@ -206,15 +210,23 @@ function app() {
     },
 
     socialLabel() {
-      if (this.social.platform === 'youtube') return 'URL Video YouTube';
+      if (this.social.platforms.length === 1 && this.social.platforms[0] === 'youtube') return 'URL Video YouTube';
       return 'Keyword / Username / Hashtag (Pisahkan dengan koma)';
     },
 
     socialPlaceholder() {
-      if (this.social.platform === 'youtube') return 'https://www.youtube.com/watch?v=...';
-      if (this.social.platform === 'twitter') return 'Contoh: @jokowi, #pemilu, korupsi';
-      if (this.social.platform === 'threads') return 'Contoh: @zuck, threads news';
-      return 'Keyword reddit...';
+      if (this.social.platforms.length === 1 && this.social.platforms[0] === 'youtube') return 'https://www.youtube.com/watch?v=...';
+      return 'Contoh: @jokowi, #pemilu, korupsi...';
+    },
+
+    togglePlatform(plat) {
+      if (this.social.platforms.includes(plat)) {
+        if (this.social.platforms.length > 1) {
+          this.social.platforms = this.social.platforms.filter(p => p !== plat);
+        }
+      } else {
+        this.social.platforms.push(plat);
+      }
     },
 
     toggleSource(src) {
@@ -233,7 +245,7 @@ function app() {
       if (this.activeTab === 'url') return this.countLines(this.url.raw) > 0;
       if (this.activeTab === 'keyword') return this.keyword.query.trim().length > 0;
       if (this.activeTab === 'text') return this.countLines(this.text.raw) > 0;
-      if (this.activeTab === 'social') return this.social.query.trim().length > 0;
+      if (this.activeTab === 'social') return this.social.query.trim().length > 0 && this.social.platforms.length > 0;
       if (this.activeTab === 'news') return this.news.query.trim().length > 0 || this.news.sources.length > 0;
       if (this.activeTab === 'batch') return this.batch.file !== null;
       return false;
@@ -270,7 +282,7 @@ function app() {
         } else if (this.activeTab === 'social') {
           endpoint = '/api/v1/social';
           body = {
-            platform: this.social.platform,
+            platforms: this.social.platforms,
             query: this.social.query,
             max_results: parseInt(this.social.limit),
             subreddit: this.social.subreddit || null,
